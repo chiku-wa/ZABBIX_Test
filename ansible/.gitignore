@@ -1,0 +1,6 @@
+# 一時ディレクトリは除外する
+/tmp/*
+
+# Ansible関連で、プレイブック以外のファイルは除外する
+ansible/hosts
+ansible/ansible_settings.yml
