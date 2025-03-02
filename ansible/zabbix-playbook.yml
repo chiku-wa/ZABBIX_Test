@@ -1,10 +1,26 @@
 # hostsに定義したグループ名を記載する
 - name: Zabbixを構築するためのプレイブック
-  hosts: zabbix-test
+  hosts: zabbix_test
 
   # ===== プレイブックで使用する、各種アカウントのユーザ名、パスワードが定義されたYAMLファイルを読み込む
   vars_files:
     - ./ansible_settings.yml
+
+  # ===== 各種変数を定義
+  vars:
+    # ----- Zabbix関連
+    # [初期スキーマ/データ登録用スクリプトファイル関連]
+    # スクリプトファイル名（拡張子なし）
+    zabbix_initialize_script_filename: "server.sql"
+    # 圧縮ファイルのパス
+    zabbix_initialize_script_dir_arch: "/usr/share/zabbix/sql-scripts/mysql"
+    zabbix_initialize_script_file_arch: "{{ zabbix_initialize_script_filename }}.gz"
+    # スクリプトの解凍先
+    zabbix_initialize_script_dir_unarch: "/tmp"
+
+    # [Zabbixの設定ファイル]
+    # サーバ設定ファイルのパス
+    zabbix_conf_server_file_path: "/etc/zabbix/zabbix_server.conf"
 
   # ===== リモートホストでsudoで実行するかどうか
   # sudoしない（root接続することが前提のため）
@@ -45,6 +61,8 @@
         password: "{{ mysql.accounts.root_user.password }}"
         # すでにパスワード変更済みの場合はプレイブックの処理はスキップする
         state: present
+        # プレイブック実行時の警告回避のためのオプション
+        column_case_sensitive: true
 
     - name: 匿名ユーザを削除する
       community.mysql.mysql_user:
@@ -55,6 +73,8 @@
         name: "" # 匿名ユーザ
         host_all: true # 全ホスト
         state: absent # ユーザ削除
+        # プレイブック実行時の警告回避のためのオプション
+        column_case_sensitive: true
 
     - name: テスト用データベースの削除
       community.mysql.mysql_db:
@@ -116,7 +136,6 @@
     # ----- Zabbix関連
     #       原則として、下記インストール手順に則って定義することとする
     #       https://www.zabbix.com/jp/download?zabbix=7.2
-    # [GPGキーの導入と、リポジトリインストール]
     - name: Zabbixの公式リポジトリをインストールする
       ansible.builtin.dnf:
         # バージョン7.2を明示する
@@ -126,6 +145,87 @@
         # Zabbixの公式サイトから引用したURLであり、信頼性は保証されているためGPG認証は不要とする
         # ※GPGを有効化した状態だと、通常のLinuxコンソールからdnfコマンドを実行する場合とは異なり、エラーが頻発して導入が滞るため
         disable_gpg_check: true
+
+    - name: Zabbixの各種ソフトウェアをインストール
+      ansible.builtin.dnf:
+        name:
+          - zabbix-server-mysql
+          - zabbix-web-mysql
+          - zabbix-apache-conf
+          - zabbix-sql-scripts
+          - zabbix-selinux-policy
+          - zabbix-agent
+        state: present
+
+    # [MySQLのデータベース上に、Zabbixの用の初期スキーマ/データを作成する]
+    - name: 「log_bin_trust_function_creators」を有効にする(Zabbixに同梱されている初期スキーマ/データ登録用スクリプトを実行するため)
+      community.mysql.mysql_query:
+        login_user: "root"
+        login_password: "{{ mysql.accounts.root_user.password }}"
+        query: "SET GLOBAL log_bin_trust_function_creators = 1;"
+
+    # [Zabbixに同梱されている初期スキーマ/データ登録用スクリプトを実行する]
+    - name: Zabbixに同梱されている初期スキーマ/データ登録用スクリプトの圧縮ファイルを解凍する
+      ansible.builtin.shell:
+        cmd: "gzip -dc {{ zabbix_initialize_script_dir_arch }}/{{ zabbix_initialize_script_file_arch }} > {{ zabbix_initialize_script_dir_unarch }}/{{ zabbix_initialize_script_filename }}"
+      # 解凍コマンドを実行しても冪等性が確保されているため、lintエラー回避のために下記を明記する。
+      changed_when: false
+
+    - name: 解凍したスクリプトをMySQLに取り込ませる
+      community.mysql.mysql_db:
+        login_user: "{{ mysql.accounts.zabbix.username }}"
+        login_password: "{{ mysql.accounts.zabbix.password }}"
+        name: "{{ mysql.database.name }}"
+        state: import
+        # 実行したいスクリプト（解凍したスクリプトのファイルパス）を指定する
+        target: "{{ zabbix_initialize_script_dir_unarch }}/{{ zabbix_initialize_script_filename }}"
+
+    - name: 「log_bin_trust_function_creators」を無効にする(元に戻す)
+      community.mysql.mysql_query:
+        login_user: "root"
+        login_password: "{{ mysql.accounts.root_user.password }}"
+        query: "SET GLOBAL log_bin_trust_function_creators = 0;"
+
+    - name: 「zabbix_server.conf」をバックアップする
+      ansible.builtin.copy:
+        src: "{{ zabbix_conf_server_file_path }}"
+        dest: "{{ zabbix_conf_server_file_path }}.bak"
+        remote_src: true
+        mode: '0644'
+
+    - name: 「zabbix_server.conf」を修正し、Zabbixの設定ファイルに、DB接続に必要なパスワードを設定する
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        # 既存のコメントアウトされている記述をコメントアウトし、パスワードを埋め込む
+        regexp: '^#\s*DBPassword='
+        line: "DBPassword={{ mysql.accounts.zabbix.password }}"
+        state: present
+
+    - name: Zabbix関連のサービスを再起動し、自動起動設定を行う
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: restarted
+        enabled: true
+      loop:
+        - zabbix-server
+        - zabbix-agent
+        - httpd
+        - php-fpm
+
+    - name: Apache用のファイアウォール開放
+      ansible.posix.firewalld:
+        # ポートを開放する
+        port: "{{ item }}/tcp"
+        # ポート開放を有効化する
+        state: enabled
+        # 設定を永続化する
+        permanent: true
+        # 即時反映する
+        immediate: true
+      # 開放したいポート番号分だけ繰り返す（item変数に相当）
+      loop:
+        - 80
+        - 443
 
   # ===== ハンドラ（tasksから呼び出される各種コマンド）を定義
   handlers:

@@ -1,0 +1,8 @@
+{
+  "cSpell.words": [
+    "firewalld",
+    "mysqld",
+    "unarch"
+  ],
+  "ansible.python.interpreterPath": "/Users/watson/pyenv/versions/3.11.1/bin/python"
+}
