@@ -227,6 +227,14 @@
         - 80
         - 443
 
+    # ----- メール設定関連
+    - name: SELinuxで2525ポートを許可する（Mailtrapで検証するため）
+      community.general.seport:
+        ports: 2525
+        proto: tcp
+        setype: smtp_port_t
+        state: present
+
   # ===== ハンドラ（tasksから呼び出される各種コマンド）を定義
   handlers:
     # MySQLのサービスを再起動するハンドラ
