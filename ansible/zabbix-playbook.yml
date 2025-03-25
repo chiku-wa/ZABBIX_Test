@@ -22,6 +22,16 @@
     # サーバ設定ファイルのパス
     zabbix_conf_server_file_path: "/etc/zabbix/zabbix_server.conf"
 
+    # ----- Selenium関連
+    # Webドライバのダウンロードファイル名（圧縮状態）
+    webdriver_file_name_for_archive: geckodriver-v{{ selenium.webdriver_version }}-linux-aarch64.tar.gz
+
+    # Webドライバのダウンロードファイル名（解凍後）
+    webdriver_file_name_for_unarchive: geckodriver
+
+    # Seleniumのサービス名
+    selenium_service_name: selenium
+
   # ===== リモートホストでsudoで実行するかどうか
   # sudoしない（root接続することが前提のため）
   become: false
@@ -167,7 +177,8 @@
     # [Zabbixに同梱されている初期スキーマ/データ登録用スクリプトを実行する]
     - name: Zabbixに同梱されている初期スキーマ/データ登録用スクリプトの圧縮ファイルを解凍する
       ansible.builtin.shell:
-        cmd: "gzip -dc {{ zabbix_initialize_script_dir_arch }}/{{ zabbix_initialize_script_file_arch }} > {{ zabbix_initialize_script_dir_unarch }}/{{ zabbix_initialize_script_filename }}"
+        cmd: "gzip -dc {{ zabbix_initialize_script_dir_arch }}/{{ zabbix_initialize_script_file_arch }}\
+               > {{ zabbix_initialize_script_dir_unarch }}/{{ zabbix_initialize_script_filename }}"
       # 解凍コマンドを実行しても冪等性が確保されているため、lintエラー回避のために下記を明記する。
       changed_when: false
 
@@ -201,6 +212,14 @@
         line: "DBPassword={{ mysql.accounts.zabbix.password }}"
         state: present
 
+    - name: Zabbixの設定ファイルを編集し、スクリプト実行を許可する（ping監視を使えるようにするため）
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        # EnableGlobalScripts=0を1に変更する
+        regexp: '^EnableGlobalScripts='
+        line: 'EnableGlobalScripts=1'
+        state: present
+
     - name: Zabbix関連のサービスを再起動し、自動起動設定を行う
       ansible.builtin.service:
         name: "{{ item }}"
@@ -226,6 +245,93 @@
       loop:
         - 80
         - 443
+
+    # ----- スタンドアローン版のSelenium導入、Zabbix設定
+    # [前提となるパッケージの導入]
+    - name: OpenJDKをインストールする
+      ansible.builtin.dnf:
+        # バージョンを指定する
+        name: java-21-openjdk
+        # すでにインストール済みの場合はスキップする
+        state: present
+
+    # [ディレクトリを作成し、Selenium本体とWebドライバをダウンロードする]
+    - name: SeleniumとWebドライバダウンロード用のディレクトリが存在するかどうかを確認する
+      ansible.builtin.stat:
+        path: "{{ selenium.work_dir }}"
+      # 存在チェックの結果を変数に格納する
+      register: exists_stat_selenium_work_dir
+
+    - name: ディレクトリが存在しない場合のみ、SeleniumとWebドライバダウンロード用のディレクトリを作成する
+      ansible.builtin.file:
+        path: "{{ selenium.work_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "755"
+      # ディレクトリが存在しなければ作成する（前述のタスクで定義した変数を元に、既存ディレクトリの存在をチェック）
+      when: not exists_stat_selenium_work_dir.stat.exists
+
+    - name: Seleniumをダウンロードする
+      ansible.builtin.get_url:
+        url: "https://github.com/SeleniumHQ/selenium/releases/download/\
+              selenium-{{ selenium.selenium_version }}/selenium-server-{{ selenium.selenium_version }}.jar"
+        dest: "{{ selenium.work_dir }}"
+        mode: "755"
+
+    # ----- Webドライバの導入
+    - name: Webドライバをダウンロード
+      ansible.builtin.get_url:
+        url: "https://github.com/mozilla/geckodriver/releases/download/\
+              v{{ selenium.webdriver_version }}/{{ webdriver_file_name_for_archive }}"
+        dest: "{{ selenium.work_dir }}"
+        mode: "755"
+
+    - name: ダウンロードしたWebドライバを解凍する
+      ansible.builtin.unarchive:
+        src: "{{ selenium.work_dir }}/{{ webdriver_file_name_for_archive }}"
+        dest: "{{ selenium.work_dir }}/"
+        remote_src: true
+
+    - name: Webドライバを実行ディレクトリにコピーする
+      ansible.builtin.copy:
+        src: "{{ selenium.work_dir }}/{{ webdriver_file_name_for_unarchive }}"
+        dest: "/usr/local/bin/{{ webdriver_file_name_for_unarchive }}"
+        mode: "755"
+        remote_src: true
+      # ファイル移動で冪等性が確保されているため、lintエラー回避のために下記を明記する。
+      changed_when: false
+
+    # ----- Seleniumのsystemdユニットを作成し、自動起動設定を有効にする
+    - name: Seleniumのsystemdユニットを作成する
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/{{ selenium_service_name }}.service"
+        content: |
+          [Unit]
+          Description=Seleniumのスタンドアローン版の起動用ユニット
+          # ネットワークの準備が整ったら起動する
+          After=network.target
+
+          [Service]
+          WorkingDirectory={{ selenium.work_dir }}
+          ExecStart=java -Dwebdriver.gecko.driver=/usr/local/bin/{{ webdriver_file_name_for_unarchive }} \
+                   -jar selenium-server-{{ selenium.selenium_version }}.jar standalone
+          # システムが異常終了しても再起動しない
+          Restart=no
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: "644"
+
+    - name: ユニットを有効化するために、systemdのデーモンを再起動する
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Seleniumを自動起動する
+      ansible.builtin.service:
+        name: "{{ selenium_service_name }}"
+        state: restarted # サービスを起動
+        enabled: true # 自動起動設定を有効
 
     # ----- メール設定関連
     - name: SELinuxで2525ポートを許可する（Mailtrapで検証するため）
