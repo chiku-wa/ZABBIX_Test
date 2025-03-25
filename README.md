@@ -44,6 +44,6 @@ ansible
 ansible-playbook -i hosts zabbix-playbook.yml
 ```
 
-上記実行後、`http://<対象のマシンのIPアドレス>/zabbix/setup.php`にアクセスすることで、Snipe-ITのプレフライト画面に遷移する。
+上記実行後、以下のURLにアクセスし、Zabbixの初期設定を行うこと。
 
-
+http://<対象のマシンのIPアドレス>/zabbix/setup.php
