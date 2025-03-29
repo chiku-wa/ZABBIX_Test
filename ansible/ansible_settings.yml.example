@@ -1,0 +1,27 @@
+# OSや各種ソフトウェアのユーザ情報を定義したファイル
+# MySQL関連のユーザ情報
+mysql:
+  accounts:
+      root_user:
+        password: XXXXX
+      zabbix:
+        # MySQLのユーザ名は、Zabbixの公式ドキュメント（https://www.zabbix.com/jp/download?zabbix=7.2）に則って設定すること
+        username: zabbix
+        password: XXXXXX
+  database:
+    # MySQLのデータベース名はZabbixの公式ドキュメント（https://www.zabbix.com/jp/download?zabbix=7.2）に則って設定すること
+    name: zabbix
+    encoding: utf8mb4
+# Selenium関連の情報
+selenium:
+  work_dir: /root/selenium_and_drivers
+  # ダウンロードしたいSeleniumのバージョン
+  selenium_version: 4.29.0
+
+  # ダウンロードしたいWebドライバのバージョン
+  webdriver_version: 0.36.0
+
+  # Webドライバ名（解凍後）
+  webdriver_file_name: geckodriver
+zabbix:
+  api_token: XXXXX
