@@ -1,0 +1,81 @@
+# hostsに定義したグループ名を記載する
+- name: 構築済みのZabbixに監視設定を追加するプレイブック
+  hosts: zabbix_test
+
+  # ===== プレイブックで使用する、各種設定値が定義されたYAML設定ファイルを読み込む
+  vars_files:
+    - ./ansible_settings.yml
+
+  # ===== リモートホストでsudoで実行するかどうか
+  # sudoしない（root接続することが前提のため）
+  become: false
+
+  # ===== 実行するタスク（コマンド）を定義
+  tasks:
+    # ----- Zabbix APIを通じて、Snipe-ITにログインし、ログイン後に「ダッシュボード」が表示されることを確認する監視設定を作成する
+    # [API経由で正規表現を作成し、その結果を出力]
+    - name: Zabbix APIで正規表現作成：ダッシュボード画面の表示判定用の正規表現文字列を定義する
+      ansible.builtin.uri:
+        # APIのリクエスト先のURLを指定する。IPには、Ansibleで接続している管理対象ノードのIPを指定する
+        url: "http://{{ ansible_default_ipv4.address }}/zabbix/api_jsonrpc.php"
+        method: "GET"
+
+        # リクエストヘッダーを定義する。
+        # 下記相当のリクエストヘッダーを作成する（APIトークンはあらかじめYAML設定ファイルに定義しておくこと）。
+        # --------------------------------
+        # Content-Type: application/json
+        # Authorization: Bearer <APIトークン>
+        # --------------------------------
+        headers:
+          Content-Type: "application/json"
+          Authorization: "Bearer {{ zabbix.api_token }}"
+
+        # JSON形式でリクエストする
+        body_format: "json"
+
+        # 下記フォーマット相当のJSONリクエストを作成する
+        # --------------------------------
+        # {
+        #   "jsonrpc": "XX",
+        #   "method": "XXX",
+        #   "params": {
+        #       "name": "XXX",
+        #       "expressions": [
+        #           {
+        #               "expression_type": X,
+        #               "expression": "XXX",
+        #               "case_sensitive": X
+        #           }
+        #       ]    },
+        #   "id": 2
+        # }
+        # --------------------------------
+        body:
+          jsonrpc: "2.0"
+          method: "regexp.create"
+          params:
+            name: "Snipe-ITのダッシュボード画面表示判定"
+            expressions:
+              - expression_type: 0
+                expression: "ダッシュボード"
+                case_sensitive: 0
+          id: 2
+        # レスポンスを変数に格納する
+      register:
+        result_regexp_create
+
+    - name: Zabbix APIで正規表現作成：Zabbix APIのレスポンスをデバッグ出力する
+      ansible.builtin.debug:
+        var: result_regexp_create
+
+    # 正規表現作成が失敗していても、Ansibleではエラー検知されないため、レスポンスのJSONにエラーが含まれていれば明示的にエラーを発生させる
+    - name: Zabbix APIで正規表現作成：エラー判定
+      ansible.builtin.fail:
+        msg: "正規表現の作成に失敗"
+      # レスポンスに、以下のJSON構造が含まれていれば、正規表現の作成エラーを示しているため、明示的にエラーを発生させる
+      # --------------------------------
+      # "json": {
+      #   "error": {
+      # --------------------------------
+      when:
+        result_regexp_create.json.error is defined

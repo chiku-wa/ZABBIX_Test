@@ -106,3 +106,55 @@ zabbix:
 ansible-playbook -i hosts setup-inspection-zabbix-playbook.yml
 ```
 
+
+# 参考
+
+ZabbixへAPIリクエストするにあたって、VisualStudioCodeの`REST Client`(https://marketplace.visualstudio.com/items?itemName=humao.rest-client)の利用を前提として、リクエスト用のテキストのサンプルファイルを以下に記述する。
+
+
+ホストの一覧を取得：
+
+```json
+GET http://XXX.XXX.XXX.XXX/zabbix/api_jsonrpc.php
+Content-Type: application/json
+Authorization: Bearer <APIトークン>
+
+{
+    "jsonrpc": "2.0",
+    "method": "host.get",
+    "params": {
+        "output": [
+            "hostid",
+            "host"
+        ],
+        "selectInterfaces": [
+            "interfaceid",
+            "ip"
+        ]
+    },
+    "id": 2
+}
+```
+
+正規表現を作成する：
+
+```json
+GET http://XXX.XXX.XXX.XXX/zabbix/api_jsonrpc.php
+Content-Type: application/json
+Authorization: Bearer <発行したAPIトークン>
+
+{
+    "jsonrpc": "2.0",
+    "method": "regexp.create",
+    "params": {
+        "name": "Snipe-ITのダッシュボード画面表示判定",
+        "expressions": [
+            {
+                "expression_type": 0,
+                "expression": "ダッシュボード",
+                "case_sensitive": 0
+            }
+        ]    },
+    "id": 2
+}
+```

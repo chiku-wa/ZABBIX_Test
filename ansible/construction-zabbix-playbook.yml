@@ -2,7 +2,7 @@
 - name: Zabbixを構築するためのプレイブック
   hosts: zabbix_test
 
-  # ===== プレイブックで使用する、各種アカウントのユーザ名、パスワードが定義されたYAMLファイルを読み込む
+  # ===== プレイブックで使用する、各種設定値が定義されたYAMLファイルを読み込む
   vars_files:
     - ./ansible_settings.yml
 
