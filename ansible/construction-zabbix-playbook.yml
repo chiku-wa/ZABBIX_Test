@@ -207,7 +207,7 @@
     - name: 「zabbix_server.conf」を修正し、Zabbixの設定ファイルに、DB接続に必要なパスワードを設定する
       ansible.builtin.lineinfile:
         path: /etc/zabbix/zabbix_server.conf
-        # 既存のコメントアウトされている記述をコメントアウトし、パスワードを埋め込む
+        # 既存のコメントアウトされている記述のコメントアウトはずし、パスワードを埋め込む
         regexp: '^#\s*DBPassword='
         line: "DBPassword={{ mysql.accounts.zabbix.password }}"
         state: present
@@ -332,6 +332,20 @@
         name: "{{ selenium_service_name }}"
         state: restarted # サービスを起動
         enabled: true # 自動起動設定を有効
+
+    - name: 「zabbix_server.conf」を修正し、Zabbixの設定ファイルに、SeleniumのWebドライバのURLを設定する
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        # 既存のコメントアウトされている記述のコメントアウトはずし、SeleniumのWebドライバのURLを埋め込む
+        regexp: '^#\s*WebDriverURL='
+        line: "WebDriverURL={{ selenium.zabbix_webdriver_url }}"
+        state: present
+
+    - name: Zabbixサービスを再起動し、「zabbix_server.conf」に変更を反映させる
+      ansible.builtin.service:
+        name: "zabbix-server"
+        state: restarted
+        enabled: true
 
     # ----- メール設定関連
     - name: SELinuxで2525ポートを許可する（Mailtrapで検証するため）

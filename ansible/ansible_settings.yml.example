@@ -12,10 +12,26 @@ mysql:
     # MySQLのデータベース名はZabbixの公式ドキュメント（https://www.zabbix.com/jp/download?zabbix=7.2）に則って設定すること
     name: zabbix
     encoding: utf8mb4
+
 # Selenium関連の情報
 selenium:
+  work_dir: /root/selenium_and_drivers
+  # ダウンロードしたいSeleniumのバージョン
+  selenium_version: 4.29.0
+
+  # ダウンロードしたいWebドライバのバージョン
+  webdriver_version: 0.36.0
+
+  # Webドライバ名（解凍後）
+  webdriver_file_name: geckodriver
+
+  # Zabbixの「zabbix_server.conf」に設定するWebドライバのURL
+  zabbix_webdriver_url: "http://localhost:4444"
+
+# Zabbix関連の情報
+zabbix:
   # APIで使用するAPIトークン
-  api_token: XXXX
+  api_token: XXXXX
 
   # 監視対象ホストを配列で定義する
   target_hosts:

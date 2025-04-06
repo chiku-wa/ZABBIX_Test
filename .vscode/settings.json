@@ -3,6 +3,7 @@
     "firewalld",
     "geckodriver",
     "groupid",
+    "lineinfile",
     "mysqld",
     "seport",
     "unarch",
