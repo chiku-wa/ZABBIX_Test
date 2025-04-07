@@ -15,6 +15,12 @@
     # Zabbix APIのjsonrpcのバージョン
     zabbix_api_jsonrpc: "2.0"
 
+    # リクエストヘッダ情報
+    zabbix_api_header_content_type: "application/json"
+    zabbix_api_header_authorization: "Bearer {{ zabbix.api_token }}"
+    zabbix_api_header_body_format: "json"
+
+
   # ===== リモートホストでsudoで実行するかどうか
   # sudoしない（root接続することが前提のため）
   become: false
@@ -25,20 +31,16 @@
     # ========== Zabbix APIを通じて、Snipe-ITにログインし、ログイン後に「ダッシュボード」が表示されることを確認する監視設定を作成する
 
     # ---------------------------------------------
-    # [監視対象ホストの設定を作成する]
+    # ----- 監視対象ホスト作成
     - name: Zabbix APIでホスト作成：監視対象のSnipe-ITのホストを作成する
       ansible.builtin.uri:
-        # APIのリクエスト先のURLを指定する。IPには、Ansibleで接続している管理対象ノードのIPを指定する
-        url: "{{ zabbix_api_url }}"
         method: "GET"
 
-        # リクエストヘッダーを定義する。
+        url: "{{ zabbix_api_url }}"
         headers:
-          Content-Type: "application/json"
-          Authorization: "Bearer {{ zabbix.api_token }}"
-
-        # JSONで具体的なリクエスト情報を送信する
-        body_format: "json"
+          Content-Type: "{{ zabbix_api_header_content_type }}"
+          Authorization: "{{ zabbix_api_header_authorization }}"
+        body_format: "{{ zabbix_api_header_body_format }}"
 
         body:
           jsonrpc: "{{ zabbix_api_jsonrpc }}"
@@ -66,19 +68,17 @@
       # --------------------------------
       failed_when: "'error' in result_zabbix_api_for_create_host.json"
 
+    # ---------------------------------------------
+    # ----- アイテム作成
     - name: Zabbix APIでアイテム作成：Seleniumを用いた監視用スクリプトを定義する
       ansible.builtin.uri:
-        # APIのリクエスト先のURLを指定する。IPには、Ansibleで接続している管理対象ノードのIPを指定する
-        url: "{{ zabbix_api_url }}"
         method: "GET"
 
-        # リクエストヘッダーを定義する。
+        url: "{{ zabbix_api_url }}"
         headers:
-          Content-Type: "application/json"
-          Authorization: "Bearer {{ zabbix.api_token }}"
-
-        # JSONで具体的なリクエスト情報を送信する
-        body_format: "json"
+          Content-Type: "{{ zabbix_api_header_content_type }}"
+          Authorization: "{{ zabbix_api_header_authorization }}"
+        body_format: "{{ zabbix_api_header_body_format }}"
 
         body:
           jsonrpc: "{{ zabbix_api_jsonrpc }}"
@@ -120,20 +120,16 @@
       failed_when: "'error' in result_zabbix_api_for_create_items.json"
 
     # ---------------------------------------------
-    # [ダッシュボード画面が表示されているかどうかの判定に使用する、正規表現を作成]
+    # ----- ダッシュボード画面が表示されているかどうかの判定に使用する、正規表現を作成
     - name: Zabbix APIで正規表現作成：ダッシュボード画面の表示判定用の正規表現文字列を定義する
       ansible.builtin.uri:
-        # APIのリクエスト先のURLを指定する。IPには、Ansibleで接続している管理対象ノードのIPを指定する
-        url: "{{ zabbix_api_url }}"
         method: "GET"
 
-        # リクエストヘッダーを定義する。
+        url: "{{ zabbix_api_url }}"
         headers:
-          Content-Type: "application/json"
-          Authorization: "Bearer {{ zabbix.api_token }}"
-
-        # JSONで具体的なリクエスト情報を送信する
-        body_format: "json"
+          Content-Type: "{{ zabbix_api_header_content_type }}"
+          Authorization: "{{ zabbix_api_header_authorization }}"
+        body_format: "{{ zabbix_api_header_body_format }}"
 
         body:
           jsonrpc: "{{ zabbix_api_jsonrpc }}"
@@ -147,7 +143,7 @@
           id: 2
       # レスポンスを変数に格納する
       register:
-        result_zabbix_api
+        result_zabbix_api_for_regex
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
@@ -155,4 +151,4 @@
       #   "json": {
       #     "error": {
       # --------------------------------
-      failed_when: "'error' in result_zabbix_api.json"
+      failed_when: "'error' in result_zabbix_api_for_regex.json"
