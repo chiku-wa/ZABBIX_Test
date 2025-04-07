@@ -33,53 +33,67 @@ zabbix:
   # APIで使用するAPIトークン
   api_token: XXXXX
 
-  # 監視対象ホストを配列で定義する
-  target_hosts:
-    # ---Snipe-ITのホスト設定---
+  # 作成したいホスト設定
+  target_host:
     # 表示名
-    - name: "ホスト表示名1"
-      # ホスト
-      host: "ホスト名1"
-      # ホストグループ
-      groups:
-        # 「Applications」を設定
-        - groupid: 19
-      # インタフェース
-      interfaces:
-            # 「タイプ」を「エージェント(1)」に設定
-        - type: 1
-          # 「IPアドレス」を設定
-          ip: 127.0.0.1
-          # DNS名を空欄
-          dns: ""
-          # 「接続方法」を「IP」に設定
-          useip: 1
-          # 「ポート」を設定
-          port: "10050"
-          # 「標準」にチェックを入れる
-          main: 1
+    name: "XXX"
+    # ホスト
+    host: "XXXX"
+    # ホストグループ
+    groups:
+      # 「Applications」を設定
+      - groupid: 19
+    # インタフェース
+    interfaces:
+      # 「タイプ」を「エージェント(1)」に設定
+      - type: 1
+        # 「IPアドレス」を設定
+        ip: 127.0.0.1
+        # DNS名を空欄
+        dns: ""
+        # 「接続方法」を「IP」に設定
+        useip: 1
+        # 「ポート」を設定
+        port: "10050"
+        # 「標準」にチェックを入れる
+        main: 1
 
-    # 2つ以上ホストを作成する場合は、以下の記述を複数回定義すること
-    # ---XXXホスト設定---
+  # 作成したホストに紐づけたいアイテムを配列で定義する
+  host_items:
+    # SeleniumでSnipe-ITのログイン画面にログインしてHTMLを返すアイテムの設定
+      # 名前
+    - name: "XXXX"
+      # タイプ（ブラウザは「22」）
+      type: 22
+      # キー
+      key_: "selenium.inspection"
+      # データ方（テキストは「4」）
+      value_type: 4
+      # 実行させたいSeleniumスクリプト
+      params: |
+        var browser = new Browser(Browser.firefoxOptions());
+
+        // Snipe-ITのログイン画面に遷移する
+        browser.navigate("http://XXX.XXX.XXX.XXX/login");
+
+        // ユーザ名とパスワードを入力
+        browser.findElement("css selector", "#username").sendKeys("XXXX");
+        browser.findElement("css selector", "#password").sendKeys("XXXX");
+
+        // 「ログイン」をクリックする
+        // ※IDがなく、クラス名では要素を一意に特定できないため、「ログイン」というラベルを持つボタンをクリックさせる
+        browser.findElement("xpath", "//button[contains(text(),'ログイン')]").click();
+
+        // アクセスしたページのHTML構造を返す
+        return browser.getPageSource();
+      # 監視間隔
+      delay: "30s"
+      # タイムアウト（デフォルト設定を用いるため、指定しない）
+      # "timeout": "XX",
+      # ヒストリの保存期間
+      history: "3d"
+
+    # 2つ以上アイテムを作成する場合は、以下の記述を複数回定義すること
     # # 表示名
     # - name: "XXX"
-    #   # ホスト
-    #   host: "XXX"
-    #   # ホストグループ
-    #   groups:
-    #     # 「Applications」を設定
-    #     - groupid: 20
-    #   # インタフェース
-    #   interfaces:
-    #         # 「タイプ」を「エージェント(1)」に設定
-    #     - type: 1
-    #       # 「IPアドレス」を設定
-    #       ip: 127.0.0.1
-    #       # DNS名を空欄
-    #       dns: ""
-    #       # 「接続方法」を「IP」に設定
-    #       useip: 1
-    #       # 「ポート」を設定
-    #       port: "10051"
-    #       # 「標準」にチェックを入れる
-    #       main: 1
+    # ...

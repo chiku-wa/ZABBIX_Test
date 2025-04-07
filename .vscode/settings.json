@@ -6,6 +6,7 @@
     "lineinfile",
     "mysqld",
     "seport",
+    "strftime",
     "unarch",
     "userip"
   ],

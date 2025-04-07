@@ -45,21 +45,18 @@
           method: "host.create"
           params:
             # ホスト
-            host: "{{ item.host }}"
+            host: "{{ zabbix.target_host.host }}"
             # 表示名
-            name: "{{ item.name }}"
+            name: "{{ zabbix.target_host.name }}"
             # ホストグループ
-            groups: "{{ item.groups }}"
+            groups: "{{ zabbix.target_host.groups }}"
             # インタフェース
-            interfaces: "{{ item.interfaces }}"
+            interfaces: "{{ zabbix.target_host.interfaces }}"
           id: 2
-
-      # 設定ファイルに定義した監視対象ホスト一覧の数だけ、ホスト作成処理を繰り返す
-      loop: "{{ zabbix.target_hosts }}"
 
       # レスポンスを変数に格納する
       register:
-        result_zabbix_api
+        result_zabbix_api_for_create_host
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
@@ -67,7 +64,60 @@
       #   "json": {
       #     "error": {
       # --------------------------------
-      failed_when: "'error' in result_zabbix_api.json"
+      failed_when: "'error' in result_zabbix_api_for_create_host.json"
+
+    - name: Zabbix APIでアイテム作成：Seleniumを用いた監視用スクリプトを定義する
+      ansible.builtin.uri:
+        # APIのリクエスト先のURLを指定する。IPには、Ansibleで接続している管理対象ノードのIPを指定する
+        url: "{{ zabbix_api_url }}"
+        method: "GET"
+
+        # リクエストヘッダーを定義する。
+        headers:
+          Content-Type: "application/json"
+          Authorization: "Bearer {{ zabbix.api_token }}"
+
+        # JSONで具体的なリクエスト情報を送信する
+        body_format: "json"
+
+        body:
+          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          method: "item.create"
+          params:
+            # 紐づけたいホストのID（先ほどの処理で作成したホストのIDを指定する）
+            hostid: "{{ result_zabbix_api_for_create_host.json.result.hostids[0] }}"
+            # 名前
+            name: "{{ item.name }}"
+            # タイプ（ブラウザは「22」）
+            type: "{{ item.type }}"
+            # キー
+            key_: "{{ item.key_ }}"
+            # データ方（テキストは「4」）
+            value_type: "{{ item.value_type }}"
+            # 実行させたいSeleniumスクリプト
+            params: "{{ item.params }}"
+            # 監視間隔
+            delay: "{{ item.delay }}"
+            # タイムアウト（デフォルト設定を用いるため、指定しない）
+            # "timeout": "{{ items.XXX }}",
+            # ヒストリの保存期間
+            history: "{{ item.history }}"
+          id: 2
+
+      # 設定ファイルに定義したアイテム数だけ作成処理を繰り返す
+      loop: "{{ zabbix.host_items }}"
+
+      # レスポンスを変数に格納する
+      register:
+        result_zabbix_api_for_create_items
+
+      # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
+      # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
+      # --------------------------------
+      #   "json": {
+      #     "error": {
+      # --------------------------------
+      failed_when: "'error' in result_zabbix_api_for_create_items.json"
 
     # ---------------------------------------------
     # [ダッシュボード画面が表示されているかどうかの判定に使用する、正規表現を作成]
