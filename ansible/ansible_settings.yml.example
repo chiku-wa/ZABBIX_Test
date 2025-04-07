@@ -97,3 +97,16 @@ zabbix:
     # # 表示名
     # - name: "XXX"
     # ...
+
+  # 作成したい正規表現文字列の情報を定義
+  regex:
+    # Snipe-ITのログイン判定で使用する、ログイン後のHTML画面の文字列判定
+    name: "Snipe-ITのダッシュボード画面表示判定2"
+    expressions:
+        # 条件の形式：（「文字列が含まれる」は0）
+      - expression_type: 0
+        # 条件式（判定で使用する文字列）
+        expression: "ダッシュボード"
+        # 大文字小文字を区別（チェックを入れないため0）
+        case_sensitive: 0
+
