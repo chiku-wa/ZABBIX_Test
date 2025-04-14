@@ -3,11 +3,11 @@
 mysql:
   accounts:
       root_user:
-        password: XXXXX
+        password: XXX
       zabbix:
         # MySQLのユーザ名は、Zabbixの公式ドキュメント（https://www.zabbix.com/jp/download?zabbix=7.2）に則って設定すること
         username: zabbix
-        password: XXXXXX
+        password: XXX
   database:
     # MySQLのデータベース名はZabbixの公式ドキュメント（https://www.zabbix.com/jp/download?zabbix=7.2）に則って設定すること
     name: zabbix
@@ -31,14 +31,14 @@ selenium:
 # Zabbix関連の情報
 zabbix:
   # APIで使用するAPIトークン
-  api_token: XXXXX
+  api_token: XXXXXX
 
   # 作成したいホスト設定
   target_host:
     # 表示名
-    name: "XXX"
+    name: "Snipe-IT"
     # ホスト
-    host: "XXXX"
+    host: "snipe-it-test"
     # ホストグループ
     groups:
       # 「Applications」を設定
@@ -58,40 +58,39 @@ zabbix:
         # 「標準」にチェックを入れる
         main: 1
 
-  # 作成したホストに紐づけたいアイテムを配列で定義する
-  host_items:
-    # SeleniumでSnipe-ITのログイン画面にログインしてHTMLを返すアイテムの設定
-      # 名前
-    - name: "XXXX"
-      # タイプ（ブラウザは「22」）
-      type: 22
-      # キー
-      key_: "selenium.inspection"
-      # データ方（テキストは「4」）
-      value_type: 4
-      # 実行させたいSeleniumスクリプト
-      params: |
-        var browser = new Browser(Browser.firefoxOptions());
+  # SeleniumでSnipe-ITのログイン画面にログインしてHTMLを返すアイテムの設定
+  host_item:
+    # 名前
+    name: "Seleniumを使ったWeb監視テスト"
+    # タイプ（ブラウザは「22」）
+    type: 22
+    # キー
+    key_: "selenium.inspection"
+    # データ方（テキストは「4」）
+    value_type: 4
+    # 実行させたいSeleniumスクリプト
+    params: |
+      var browser = new Browser(Browser.firefoxOptions());
 
-        // Snipe-ITのログイン画面に遷移する
-        browser.navigate("http://XXX.XXX.XXX.XXX/login");
+      // Snipe-ITのログイン画面に遷移する
+      browser.navigate("http://XXX.XXX.XXX.XXX/login");
 
-        // ユーザ名とパスワードを入力
-        browser.findElement("css selector", "#username").sendKeys("XXXX");
-        browser.findElement("css selector", "#password").sendKeys("XXXX");
+      // ユーザ名とパスワードを入力
+      browser.findElement("css selector", "#username").sendKeys("XXX");
+      browser.findElement("css selector", "#password").sendKeys("XXXX");
 
-        // 「ログイン」をクリックする
-        // ※IDがなく、クラス名では要素を一意に特定できないため、「ログイン」というラベルを持つボタンをクリックさせる
-        browser.findElement("xpath", "//button[contains(text(),'ログイン')]").click();
+      // 「ログイン」をクリックする
+      // ※IDがなく、クラス名では要素を一意に特定できないため、「ログイン」というラベルを持つボタンをクリックさせる
+      browser.findElement("xpath", "//button[contains(text(),'ログイン')]").click();
 
-        // アクセスしたページのHTML構造を返す
-        return browser.getPageSource();
-      # 監視間隔
-      delay: "30s"
-      # タイムアウト（デフォルト設定を用いるため、指定しない）
-      # "timeout": "XX",
-      # ヒストリの保存期間
-      history: "3d"
+      // アクセスしたページのHTML構造を返す
+      return browser.getPageSource();
+    # 監視間隔
+    delay: "30s"
+    # タイムアウト（デフォルト設定を用いるため、指定しない）
+    # "timeout": "XX",
+    # ヒストリの保存期間
+    history: "3d"
 
     # 2つ以上アイテムを作成する場合は、以下の記述を複数回定義すること
     # # 表示名
@@ -101,7 +100,7 @@ zabbix:
   # 作成したい正規表現文字列の情報を定義
   regex:
     # Snipe-ITのログイン判定で使用する、ログイン後のHTML画面の文字列判定
-    name: "Snipe-ITのダッシュボード画面表示判定2"
+    name: "Snipe-ITのダッシュボード画面表示判定"
     expressions:
         # 条件の形式：（「文字列が含まれる」は0）
       - expression_type: 0
@@ -109,4 +108,3 @@ zabbix:
         expression: "ダッシュボード"
         # 大文字小文字を区別（チェックを入れないため0）
         case_sensitive: 0
-
