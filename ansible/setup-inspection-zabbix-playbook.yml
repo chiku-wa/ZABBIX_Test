@@ -15,10 +15,13 @@
     # Zabbix APIのjsonrpcのバージョン
     zabbix_api_jsonrpc: "2.0"
 
-    # リクエストヘッダ情報
+    # Zabbix APIのリクエストヘッダ情報
     zabbix_api_header_content_type: "application/json"
     zabbix_api_header_authorization: "Bearer {{ zabbix.api_token }}"
     zabbix_api_header_body_format: "json"
+
+    # Zabbix APIリクエスト時に指定するID
+    zabbix_api_id: "2"
 
   # ===== リモートホストでsudoで実行するかどうか
   # sudoしない（root接続することが前提のため）
@@ -44,6 +47,8 @@
         body:
           jsonrpc: "{{ zabbix_api_jsonrpc }}"
           method: "host.create"
+          id: "{{ zabbix_api_id }}"
+
           params:
             # ホスト
             host: "{{ zabbix.target_host.host }}"
@@ -53,7 +58,6 @@
             groups: "{{ zabbix.target_host.groups }}"
             # インタフェース
             interfaces: "{{ zabbix.target_host.interfaces }}"
-          id: 2
 
       # レスポンスを変数に格納する
       register:
@@ -66,6 +70,55 @@
       #     "error": {
       # --------------------------------
       failed_when: "'error' in result_zabbix_api_for_create_host.json"
+
+    # ホスト情報をZabbix APIで取得して変数に格納する
+    # ※アイテムやトリガー作成で使用するため。ホスト作成時のレスポンス情報には、ID情報しか含まれないため、host.getで再取得する
+    - name: Zabbix APIでホスト作成：作成したホストの情報を取得してレスポンス結果を変数に格納
+      ansible.builtin.uri:
+        method: "GET"
+
+        url: "{{ zabbix_api_url }}"
+        headers:
+          Content-Type: "{{ zabbix_api_header_content_type }}"
+          Authorization: "{{ zabbix_api_header_authorization }}"
+        body_format: "{{ zabbix_api_header_body_format }}"
+
+        body:
+          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          method: "host.get"
+          id: "{{ zabbix_api_id }}"
+
+          params:
+            output: "extend"
+            # 情報を取得したいホストのID
+            # ※先ほどの処理で作成したホストのIDを指定する
+            # ※登録件数が1件でもレスポンスは配列として返ってくるため、[0]で明示的に1要素目を取得する
+            hostids: "{{ result_zabbix_api_for_create_host.json.result.hostids[0] }}"
+
+      # レスポンスを変数に格納する
+      register:
+        created_host_raw
+
+      # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
+      # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
+      # --------------------------------
+      #   "json": {
+      #     "error": {
+      # --------------------------------
+      failed_when: "'error' in created_host_raw.json"
+
+    - name: Zabbix APIでホスト作成：変数に格納したレスポンス結果を加工し、ホスト情報のみを抜き出して変数に格納し直す
+      # 本プレイブックは、単一のホストを作成することを前提としているため、host.getのレスポンス結果で、0要素目を取得して変数に格納する
+      # --------------------------------
+      # "result": [
+      # {
+      #   "hostid": "10702",
+      #   "proxyid": "0",
+      #   "host": "snipe-it-test3",
+      # ...
+      # --------------------------------
+      ansible.builtin.set_fact:
+        created_host: "{{ created_host_raw.json.result[0] }}"
 
     # ---------------------------------------------
     # ----- アイテム作成
@@ -82,33 +135,31 @@
         body:
           jsonrpc: "{{ zabbix_api_jsonrpc }}"
           method: "item.create"
-          params:
-            # 紐づけたいホストのID（先ほどの処理で作成したホストのIDを指定する）
-            hostid: "{{ result_zabbix_api_for_create_host.json.result.hostids[0] }}"
-            # 名前
-            name: "{{ item.name }}"
-            # タイプ（ブラウザは「22」）
-            type: "{{ item.type }}"
-            # キー
-            key_: "{{ item.key_ }}"
-            # データ方（テキストは「4」）
-            value_type: "{{ item.value_type }}"
-            # 実行させたいSeleniumスクリプト
-            params: "{{ item.params }}"
-            # 監視間隔
-            delay: "{{ item.delay }}"
-            # タイムアウト（デフォルト設定を用いるため、指定しない）
-            # "timeout": "{{ items.XXX }}",
-            # ヒストリの保存期間
-            history: "{{ item.history }}"
-          id: 2
+          id: "{{ zabbix_api_id }}"
 
-      # 設定ファイルに定義したアイテム数だけ作成処理を繰り返す
-      loop: "{{ zabbix.host_items }}"
+          params:
+            # 紐づけたいホストのID
+            hostid: "{{ created_host.hostid }}"
+            # 名前
+            name: "{{ zabbix.host_item.name }}"
+            # タイプ（ブラウザは「22」）
+            type: "{{ zabbix.host_item.type }}"
+            # キー
+            key_: "{{ zabbix.host_item.key_ }}"
+            # データ方（テキストは「4」）
+            value_type: "{{ zabbix.host_item.value_type }}"
+            # 実行させたいSeleniumスクリプト
+            params: "{{ zabbix.host_item.params }}"
+            # 監視間隔
+            delay: "{{ zabbix.host_item.delay }}"
+            # タイムアウト（デフォルト設定を用いるため、指定しない）
+            # "timeout": "{{ XXX }}",
+            # ヒストリの保存期間
+            history: "{{ zabbix.host_item.history }}"
 
       # レスポンスを変数に格納する
       register:
-        result_zabbix_api_for_create_items
+        result_zabbix_api_for_create_item
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
@@ -116,7 +167,56 @@
       #   "json": {
       #     "error": {
       # --------------------------------
-      failed_when: "'error' in result_zabbix_api_for_create_items.json"
+      failed_when: "'error' in result_zabbix_api_for_create_item.json"
+
+    # アイテム情報をZabbix APIで取得して変数に格納する
+    # ※トリガー作成で使用するため。ホスト作成時のレスポンス情報には、ID情報しか含まれないため、host.getで再取得する
+    - name: Zabbix APIでアイテム作成：作成したアイテムの情報を取得してレスポンス結果を変数に格納
+      ansible.builtin.uri:
+        method: "GET"
+
+        url: "{{ zabbix_api_url }}"
+        headers:
+          Content-Type: "{{ zabbix_api_header_content_type }}"
+          Authorization: "{{ zabbix_api_header_authorization }}"
+        body_format: "{{ zabbix_api_header_body_format }}"
+
+        body:
+          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          method: "item.get"
+          id: "{{ zabbix_api_id }}"
+
+          params:
+            output: "extend"
+            # 情報を取得したいアイテムのID
+            # ※先ほどの処理で作成したアイテムのIDを指定する
+            # ※登録件数が1件でもレスポンスは配列として返ってくるため、[0]で明示的に1要素目を取得する
+            itemids: "{{ result_zabbix_api_for_create_item.json.result.itemids[0] }}"
+
+      # レスポンスを変数に格納する
+      register:
+        created_item_raw
+
+      # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
+      # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
+      # --------------------------------
+      #   "json": {
+      #     "error": {
+      # --------------------------------
+      failed_when: "'error' in created_item_raw.json"
+
+    - name: Zabbix APIでアイテム作成：変数に格納したレスポンス結果を加工し、アイテム情報のみを抜き出して変数に格納し直す
+      # 本プレイブックは、単一のホストを作成することを前提としているため、host.getのレスポンス結果で、0要素目を取得して変数に格納する
+      # --------------------------------
+      # "result": [
+      # {
+      #   "hostid": "10702",
+      #   "proxyid": "0",
+      #   "host": "snipe-it-test3",
+      # ...
+      # --------------------------------
+      ansible.builtin.set_fact:
+        created_item: "{{ created_item_raw.json.result[0] }}"
 
     # ---------------------------------------------
     # ----- ダッシュボード画面が表示されているかどうかの判定に使用する、正規表現を作成
@@ -133,10 +233,12 @@
         body:
           jsonrpc: "{{ zabbix_api_jsonrpc }}"
           method: "regexp.create"
+          id: "{{ zabbix_api_id }}"
+
           params:
             name: "{{ zabbix.regex.name }}"
             expressions: "{{ zabbix.regex.expressions }}"
-          id: 2
+
       # レスポンスを変数に格納する
       register:
         result_zabbix_api_for_regex
@@ -148,3 +250,93 @@
       #     "error": {
       # --------------------------------
       failed_when: "'error' in result_zabbix_api_for_regex.json"
+
+    # 正規表現情報をZabbix APIで取得して変数に格納する
+    # ※トリガー作成で使用するため。正規表現作成時のレスポンス情報には、ID情報しか含まれないため、regexp.getで再取得する
+    - name: Zabbix APIで正規表現作成：作成した正規表現の各種情報を取得して変数に格納
+      ansible.builtin.uri:
+        method: "GET"
+
+        url: "{{ zabbix_api_url }}"
+        headers:
+          Content-Type: "{{ zabbix_api_header_content_type }}"
+          Authorization: "{{ zabbix_api_header_authorization }}"
+        body_format: "{{ zabbix_api_header_body_format }}"
+
+        body:
+          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          method: "regexp.get"
+          id: "{{ zabbix_api_id }}"
+
+          params:
+            output: "extend"
+            # 情報を取得したい正規表現のID
+            # ※先ほどの処理で作成した正規表現のIDを指定する
+            # ※登録件数が1件でもレスポンスは配列として返ってくるため、[0]で明示的に1要素目を取得する
+            regexpids: "{{ result_zabbix_api_for_regex.json.result.regexpids[0] }}"
+
+      # レスポンスを変数に格納する
+      register:
+        created_regexp_raw
+
+      # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
+      # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
+      # --------------------------------
+      #   "json": {
+      #     "error": {
+      # --------------------------------
+      failed_when: "'error' in created_regexp_raw.json"
+
+    - name: Zabbix APIで正規表現作成：変数に格納したレスポンス結果を加工し、正規表現情報のみを抜き出して変数に格納し直す
+      # 本プレイブックは、単一のホストを作成することを前提としているため、host.getのレスポンス結果で、0要素目を取得して変数に格納する
+      # --------------------------------
+      # "result": [
+      #     {
+      #       "regexpid": "16",
+      #       "name": "XXXX",
+      #       "test_string": ""
+      # ...
+      # --------------------------------
+      ansible.builtin.set_fact:
+        created_regexp: "{{ created_regexp_raw.json.result[0] }}"
+
+    - name: "デバッグ"
+      ansible.builtin.debug:
+        msg: 'find(/{{ created_host.host }}/{{ created_item.name }},,"regexp","@{{ created_regexp.name }}")=0'
+
+    # ---------------------------------------------
+    # ----- トリガー作成
+    - name: Zabbix APIでトリガーを作成：作成したアイテムに「ダッシュボード」が含まれない場合に警告を発するトリガーを作成する
+      ansible.builtin.uri:
+        method: "POST"
+
+        url: "{{ zabbix_api_url }}"
+        headers:
+          Content-Type: "{{ zabbix_api_header_content_type }}"
+          Authorization: "{{ zabbix_api_header_authorization }}"
+        body_format: "{{ zabbix_api_header_body_format }}"
+
+        body:
+          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          method: "trigger.create"
+          id: "{{ zabbix_api_id }}"
+
+          params:
+            description: "アイテム（Selenium）で取得したHTML内に、指定した正規表現文字列が含まれていなければアラートを発報するトリガー。"
+            # 本設定ファイルで定義した情報を下に、アイテム（Selenium）で取得したHTMLに、
+            # 正規表現文字列が含まれているかどうかを判定するトリガーを作成する
+            # 構文：
+            # find(/＜ホスト名＞/＜アイテムのキー名＞,,\"regexp\",\"@＜正規表現名＞\")=0
+            expression: 'find(/{{ created_host.host }}/{{ created_item.key_ }},,"regexp","@{{ created_regexp.name }}")=0'
+
+      # レスポンスを変数に格納する
+      register:
+        result_zabbix_api_for_trigger
+
+      # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
+      # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
+      # --------------------------------
+      #   "json": {
+      #     "error": {
+      # --------------------------------
+      failed_when: "'error' in result_zabbix_api_for_trigger.json"
