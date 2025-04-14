@@ -323,11 +323,18 @@
 
           params:
             description: "アイテム（Selenium）で取得したHTML内に、指定した正規表現文字列が含まれていなければアラートを発報するトリガー。"
+
+            # 深刻度に「警告(2)」を設定する
+            priority: 2
+
             # 本設定ファイルで定義した情報を下に、アイテム（Selenium）で取得したHTMLに、
             # 正規表現文字列が含まれているかどうかを判定するトリガーを作成する
             # 構文：
             # find(/＜ホスト名＞/＜アイテムのキー名＞,,\"regexp\",\"@＜正規表現名＞\")=0
             expression: 'find(/{{ created_host.host }}/{{ created_item.key_ }},,"regexp","@{{ created_regexp.name }}")=0'
+
+            # 有効化（「0」を指定）する
+            status: 0
 
       # レスポンスを変数に格納する
       register:
