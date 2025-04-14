@@ -4,4 +4,4 @@
 # Ansible関連で、プレイブック以外のファイルは除外する
 ansible/hosts
 ansible/ansible_settings.yml
-ansible/secrets.yml
+ansible/ansible_secrets.yml
