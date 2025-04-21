@@ -1,27 +1,13 @@
-# hostsに定義したグループ名を記載する
 - name: 構築済みのZabbixに監視設定を追加するプレイブック
+  # hostsに定義したグループ名を記載する
   hosts: zabbix_test
 
   # ===== プレイブックで使用する、各種設定値が定義されたYAML設定ファイルを読み込む
   vars_files:
+    # 機密情報保存用のansible-vaultファイルを先に読み込む
+    # ※ansible_settings.ymlで、ansible-vaultの定義情報を読み込んでいるため
+    - ./ansible_secrets.yml
     - ./ansible_settings.yml
-
-  # ===== 各種変数を定義
-  vars:
-    # ----- Zabbix関連
-    # Zabbix APIのリクエスト用URL
-    zabbix_api_url: "http://{{ ansible_default_ipv4.address }}/zabbix/api_jsonrpc.php"
-
-    # Zabbix APIのjsonrpcのバージョン
-    zabbix_api_jsonrpc: "2.0"
-
-    # Zabbix APIのリクエストヘッダ情報
-    zabbix_api_header_content_type: "application/json"
-    zabbix_api_header_authorization: "Bearer {{ zabbix.api_token }}"
-    zabbix_api_header_body_format: "json"
-
-    # Zabbix APIリクエスト時に指定するID
-    zabbix_api_id: "2"
 
   # ===== リモートホストでsudoで実行するかどうか
   # sudoしない（root接続することが前提のため）
@@ -38,16 +24,16 @@
       ansible.builtin.uri:
         method: "GET"
 
-        url: "{{ zabbix_api_url }}"
+        url: "{{ zabbix.api_common.api_url }}"
         headers:
-          Content-Type: "{{ zabbix_api_header_content_type }}"
-          Authorization: "{{ zabbix_api_header_authorization }}"
-        body_format: "{{ zabbix_api_header_body_format }}"
+          Content-Type: "{{ zabbix.api_common.api_header_content_type }}"
+          Authorization: "{{ zabbix.api_common.api_header_authorization }}"
+        body_format: "{{ zabbix.api_common.api_header_body_format }}"
 
         body:
-          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          jsonrpc: "{{ zabbix.api_common.api_jsonrpc }}"
           method: "host.create"
-          id: "{{ zabbix_api_id }}"
+          id: "{{ zabbix.api_common.api_id }}"
 
           params:
             # ホスト
@@ -58,10 +44,19 @@
             groups: "{{ zabbix.target_host.groups }}"
             # インタフェース
             interfaces: "{{ zabbix.target_host.interfaces }}"
+            # マクロ変数として、監視対象のSnipe-ITのユーザ名、パスワードを設定する
+            macros:
+              # ユーザ名はプレーンテキスト（type=0）で定義
+              - macro: "{{ secrets.zabbix.target_host.macros.username.macro }}"
+                value: "{{ secrets.zabbix.target_host.macros.username.value }}"
+                type: "0"
+              # パスワードは非表示（type=1）で定義
+              - macro: "{{ secrets.zabbix.target_host.macros.password.macro }}"
+                value: "{{ secrets.zabbix.target_host.macros.password.value }}"
+                type: "1"
 
       # レスポンスを変数に格納する
-      register:
-        result_zabbix_api_for_create_host
+      register: result_zabbix_api_for_create_host
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
@@ -77,16 +72,16 @@
       ansible.builtin.uri:
         method: "GET"
 
-        url: "{{ zabbix_api_url }}"
+        url: "{{ zabbix.api_common.api_url }}"
         headers:
-          Content-Type: "{{ zabbix_api_header_content_type }}"
-          Authorization: "{{ zabbix_api_header_authorization }}"
-        body_format: "{{ zabbix_api_header_body_format }}"
+          Content-Type: "{{ zabbix.api_common.api_header_content_type }}"
+          Authorization: "{{ zabbix.api_common.api_header_authorization }}"
+        body_format: "{{ zabbix.api_common.api_header_body_format }}"
 
         body:
-          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          jsonrpc: "{{ zabbix.api_common.api_jsonrpc }}"
           method: "host.get"
-          id: "{{ zabbix_api_id }}"
+          id: "{{ zabbix.api_common.api_id }}"
 
           params:
             output: "extend"
@@ -96,8 +91,7 @@
             hostids: "{{ result_zabbix_api_for_create_host.json.result.hostids[0] }}"
 
       # レスポンスを変数に格納する
-      register:
-        created_host_raw
+      register: created_host_raw
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
@@ -126,16 +120,16 @@
       ansible.builtin.uri:
         method: "GET"
 
-        url: "{{ zabbix_api_url }}"
+        url: "{{ zabbix.api_common.api_url }}"
         headers:
-          Content-Type: "{{ zabbix_api_header_content_type }}"
-          Authorization: "{{ zabbix_api_header_authorization }}"
-        body_format: "{{ zabbix_api_header_body_format }}"
+          Content-Type: "{{ zabbix.api_common.api_header_content_type }}"
+          Authorization: "{{ zabbix.api_common.api_header_authorization }}"
+        body_format: "{{ zabbix.api_common.api_header_body_format }}"
 
         body:
-          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          jsonrpc: "{{ zabbix.api_common.api_jsonrpc }}"
           method: "item.create"
-          id: "{{ zabbix_api_id }}"
+          id: "{{ zabbix.api_common.api_id }}"
 
           params:
             # 紐づけたいホストのID
@@ -158,8 +152,7 @@
             history: "{{ zabbix.host_item.history }}"
 
       # レスポンスを変数に格納する
-      register:
-        result_zabbix_api_for_create_item
+      register: result_zabbix_api_for_create_item
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
@@ -175,16 +168,16 @@
       ansible.builtin.uri:
         method: "GET"
 
-        url: "{{ zabbix_api_url }}"
+        url: "{{ zabbix.api_common.api_url }}"
         headers:
-          Content-Type: "{{ zabbix_api_header_content_type }}"
-          Authorization: "{{ zabbix_api_header_authorization }}"
-        body_format: "{{ zabbix_api_header_body_format }}"
+          Content-Type: "{{ zabbix.api_common.api_header_content_type }}"
+          Authorization: "{{ zabbix.api_common.api_header_authorization }}"
+        body_format: "{{ zabbix.api_common.api_header_body_format }}"
 
         body:
-          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          jsonrpc: "{{ zabbix.api_common.api_jsonrpc }}"
           method: "item.get"
-          id: "{{ zabbix_api_id }}"
+          id: "{{ zabbix.api_common.api_id }}"
 
           params:
             output: "extend"
@@ -194,8 +187,7 @@
             itemids: "{{ result_zabbix_api_for_create_item.json.result.itemids[0] }}"
 
       # レスポンスを変数に格納する
-      register:
-        created_item_raw
+      register: created_item_raw
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
@@ -224,24 +216,23 @@
       ansible.builtin.uri:
         method: "GET"
 
-        url: "{{ zabbix_api_url }}"
+        url: "{{ zabbix.api_common.api_url }}"
         headers:
-          Content-Type: "{{ zabbix_api_header_content_type }}"
-          Authorization: "{{ zabbix_api_header_authorization }}"
-        body_format: "{{ zabbix_api_header_body_format }}"
+          Content-Type: "{{ zabbix.api_common.api_header_content_type }}"
+          Authorization: "{{ zabbix.api_common.api_header_authorization }}"
+        body_format: "{{ zabbix.api_common.api_header_body_format }}"
 
         body:
-          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          jsonrpc: "{{ zabbix.api_common.api_jsonrpc }}"
           method: "regexp.create"
-          id: "{{ zabbix_api_id }}"
+          id: "{{ zabbix.api_common.api_id }}"
 
           params:
             name: "{{ zabbix.regex.name }}"
             expressions: "{{ zabbix.regex.expressions }}"
 
       # レスポンスを変数に格納する
-      register:
-        result_zabbix_api_for_regex
+      register: result_zabbix_api_for_regex
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
@@ -257,16 +248,16 @@
       ansible.builtin.uri:
         method: "GET"
 
-        url: "{{ zabbix_api_url }}"
+        url: "{{ zabbix.api_common.api_url }}"
         headers:
-          Content-Type: "{{ zabbix_api_header_content_type }}"
-          Authorization: "{{ zabbix_api_header_authorization }}"
-        body_format: "{{ zabbix_api_header_body_format }}"
+          Content-Type: "{{ zabbix.api_common.api_header_content_type }}"
+          Authorization: "{{ zabbix.api_common.api_header_authorization }}"
+        body_format: "{{ zabbix.api_common.api_header_body_format }}"
 
         body:
-          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          jsonrpc: "{{ zabbix.api_common.api_jsonrpc }}"
           method: "regexp.get"
-          id: "{{ zabbix_api_id }}"
+          id: "{{ zabbix.api_common.api_id }}"
 
           params:
             output: "extend"
@@ -276,8 +267,7 @@
             regexpids: "{{ result_zabbix_api_for_regex.json.result.regexpids[0] }}"
 
       # レスポンスを変数に格納する
-      register:
-        created_regexp_raw
+      register: created_regexp_raw
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる
@@ -310,16 +300,16 @@
       ansible.builtin.uri:
         method: "POST"
 
-        url: "{{ zabbix_api_url }}"
+        url: "{{ zabbix.api_common.api_url }}"
         headers:
-          Content-Type: "{{ zabbix_api_header_content_type }}"
-          Authorization: "{{ zabbix_api_header_authorization }}"
-        body_format: "{{ zabbix_api_header_body_format }}"
+          Content-Type: "{{ zabbix.api_common.api_header_content_type }}"
+          Authorization: "{{ zabbix.api_common.api_header_authorization }}"
+        body_format: "{{ zabbix.api_common.api_header_body_format }}"
 
         body:
-          jsonrpc: "{{ zabbix_api_jsonrpc }}"
+          jsonrpc: "{{ zabbix.api_common.api_jsonrpc }}"
           method: "trigger.create"
-          id: "{{ zabbix_api_id }}"
+          id: "{{ zabbix.api_common.api_id }}"
 
           params:
             description: "アイテム（Selenium）で取得したHTML内に、指定した正規表現文字列が含まれていなければアラートを発報するトリガー。"
@@ -337,8 +327,7 @@
             status: 0
 
       # レスポンスを変数に格納する
-      register:
-        result_zabbix_api_for_trigger
+      register: result_zabbix_api_for_trigger
 
       # レスポンスに以下のJSON構造でエラーを示す要素が含まれている場合はエラーとする
       # ※Ansibleでは、HTTPステータスコード=200だと失敗にならないため、明示的にエラーを発生させる

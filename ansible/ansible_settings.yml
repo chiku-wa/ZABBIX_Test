@@ -1,13 +1,6 @@
 # OSや各種ソフトウェアのユーザ情報を定義したファイル
 # MySQL関連のユーザ情報
 mysql:
-  accounts:
-      root_user:
-        password: XXX
-      zabbix:
-        # MySQLのユーザ名は、Zabbixの公式ドキュメント（https://www.zabbix.com/jp/download?zabbix=7.2）に則って設定すること
-        username: zabbix
-        password: XXX
   database:
     # MySQLのデータベース名はZabbixの公式ドキュメント（https://www.zabbix.com/jp/download?zabbix=7.2）に則って設定すること
     name: zabbix
@@ -30,15 +23,28 @@ selenium:
 
 # Zabbix関連の情報
 zabbix:
-  # APIで使用するAPIトークン
-  api_token: XXXXXX
+  # APIリクエストで使用する汎用的な設定値
+  api_common:
+    # Zabbix APIのリクエスト用URL
+    api_url: "http://{{ ansible_default_ipv4.address }}/zabbix/api_jsonrpc.php"
+
+    # Zabbix APIのjsonrpcのバージョン
+    api_jsonrpc: "2.0"
+
+    # Zabbix APIのリクエストヘッダ情報
+    api_header_content_type: "application/json"
+    api_header_authorization: "Bearer {{ secrets.zabbix.api_token }}"
+    api_header_body_format: "json"
+
+    # Zabbix APIリクエスト時に指定するID
+    api_id: "2"
 
   # 作成したいホスト設定
   target_host:
     # 表示名
-    name: "Snipe-IT"
+    name: "Snipe-IT_{{ '%Y%m%d-%H%M%S' | strftime(ansible_date_time.epoch) }}"
     # ホスト
-    host: "snipe-it-test"
+    host: "snipe-it-test_{{ '%Y%m%d-%H%M%S' | strftime(ansible_date_time.epoch) }}"
     # ホストグループ
     groups:
       # 「Applications」を設定
@@ -58,26 +64,28 @@ zabbix:
         # 「標準」にチェックを入れる
         main: 1
 
+
   # SeleniumでSnipe-ITのログイン画面にログインしてHTMLを返すアイテムの設定
   host_item:
     # 名前
-    name: "Seleniumを使ったWeb監視テスト"
+    name: "Seleniumを使ったWeb監視テスト_{{ '%Y%m%d-%H%M%S' | strftime(ansible_date_time.epoch) }}"
     # タイプ（ブラウザは「22」）
     type: 22
     # キー
     key_: "selenium.inspection"
     # データ方（テキストは「4」）
     value_type: 4
-    # 実行させたいSeleniumスクリプト
+    # Seleniumのスクリプト定義を記述する。なお、ユーザ名とパスワードは直接記載せず、Zabbixのホスト設定にあらかじめマクロが定義されていることを前提とする
+    # 実態のユーザ名、パスワードは、マクロ変数のValueに定義されており、ansible-vaultに定義している
     params: |
       var browser = new Browser(Browser.firefoxOptions());
 
       // Snipe-ITのログイン画面に遷移する
-      browser.navigate("http://XXX.XXX.XXX.XXX/login");
+      browser.navigate("http://{{ secrets.zabbix.target_host.ip }}/login");
 
       // ユーザ名とパスワードを入力
-      browser.findElement("css selector", "#username").sendKeys("XXX");
-      browser.findElement("css selector", "#password").sendKeys("XXXX");
+      browser.findElement("css selector", "#username").sendKeys("{{ secrets.zabbix.target_host.macros.username.macro }}");
+      browser.findElement("css selector", "#password").sendKeys("{{ secrets.zabbix.target_host.macros.password.macro }}");
 
       // 「ログイン」をクリックする
       // ※IDがなく、クラス名では要素を一意に特定できないため、「ログイン」というラベルを持つボタンをクリックさせる
@@ -85,6 +93,7 @@ zabbix:
 
       // アクセスしたページのHTML構造を返す
       return browser.getPageSource();
+
     # 監視間隔
     delay: "30s"
     # タイムアウト（デフォルト設定を用いるため、指定しない）
@@ -100,9 +109,9 @@ zabbix:
   # 作成したい正規表現文字列の情報を定義
   regex:
     # Snipe-ITのログイン判定で使用する、ログイン後のHTML画面の文字列判定
-    name: "Snipe-ITのダッシュボード画面表示判定"
+    name: "Snipe-ITのダッシュボード画面表示判定_{{ '%Y%m%d-%H%M%S' | strftime(ansible_date_time.epoch) }}"
     expressions:
-        # 条件の形式：（「文字列が含まれる」は0）
+      # 条件の形式：（「文字列が含まれる」は0）
       - expression_type: 0
         # 条件式（判定で使用する文字列）
         expression: "ダッシュボード"

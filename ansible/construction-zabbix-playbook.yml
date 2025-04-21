@@ -4,6 +4,9 @@
 
   # ===== プレイブックで使用する、各種設定値が定義されたYAMLファイルを読み込む
   vars_files:
+    # 機密情報保存用のansible-vaultファイルを先に読み込む
+    # ※ansible_settings.ymlで、ansible-vaultの定義情報を読み込んでいるため
+    - ./ansible_secrets.yml
     - ./ansible_settings.yml
 
   # ===== 各種変数を定義
@@ -65,10 +68,10 @@
         check_implicit_admin: true
         # コマンドを実行する際に接続するユーザ名、パスワード
         login_user: root
-        login_password: "{{ mysql.accounts.root_user.password }}"
+        login_password: "{{ secrets.mysql.accounts.root_user.password }}"
         # パスワードを変更したいユーザと、設定したいパスワード
         name: root
-        password: "{{ mysql.accounts.root_user.password }}"
+        password: "{{ secrets.mysql.accounts.root_user.password }}"
         # すでにパスワード変更済みの場合はプレイブックの処理はスキップする
         state: present
         # プレイブック実行時の警告回避のためのオプション
@@ -78,7 +81,7 @@
       community.mysql.mysql_user:
         # コマンドを実行する際に接続するユーザ名、パスワード
         login_user: root
-        login_password: "{{ mysql.accounts.root_user.password }}"
+        login_password: "{{ secrets.mysql.accounts.root_user.password }}"
         # 全ホストで匿名ユーザを削除する（state: absentは）
         name: "" # 匿名ユーザ
         host_all: true # 全ホスト
@@ -90,7 +93,7 @@
       community.mysql.mysql_db:
         # コマンドを実行する際に接続するユーザ名、パスワード
         login_user: root
-        login_password: "{{ mysql.accounts.root_user.password }}"
+        login_password: "{{ secrets.mysql.accounts.root_user.password }}"
         # 削除したいデータベース名
         name: test
         # 削除する
@@ -101,7 +104,7 @@
       community.mysql.mysql_db:
         # コマンドを実行する際に接続するユーザ名、パスワード
         login_user: root
-        login_password: "{{ mysql.accounts.root_user.password }}"
+        login_password: "{{ secrets.mysql.accounts.root_user.password }}"
         # データベースを作成する
         name: "{{ mysql.database.name }}" # データベース名
         encoding: "{{ mysql.database.encoding }}" # データベースのエンコーディング
@@ -111,10 +114,10 @@
       community.mysql.mysql_user:
         # コマンドを実行する際に接続するユーザ名、パスワード
         login_user: root
-        login_password: "{{ mysql.accounts.root_user.password }}"
+        login_password: "{{ secrets.mysql.accounts.root_user.password }}"
         # ユーザを作成する
-        name: "{{ mysql.accounts.zabbix.username }}"
-        password: "{{ mysql.accounts.zabbix.password }}"
+        name: "{{ secrets.mysql.accounts.zabbix.username }}"
+        password: "{{ secrets.mysql.accounts.zabbix.password }}"
         # 下記コマンド相当の権限付与を行う
         # GRANT ALL PRIVILEGES ON <データベース>.* TO '<ユーザ名>'@'%';
         host: "%" # すべてのホストからのアクセスを許可
@@ -171,21 +174,22 @@
     - name: 「log_bin_trust_function_creators」を有効にする(Zabbixに同梱されている初期スキーマ/データ登録用スクリプトを実行するため)
       community.mysql.mysql_query:
         login_user: "root"
-        login_password: "{{ mysql.accounts.root_user.password }}"
+        login_password: "{{ secrets.mysql.accounts.root_user.password }}"
         query: "SET GLOBAL log_bin_trust_function_creators = 1;"
 
     # [Zabbixに同梱されている初期スキーマ/データ登録用スクリプトを実行する]
     - name: Zabbixに同梱されている初期スキーマ/データ登録用スクリプトの圧縮ファイルを解凍する
       ansible.builtin.shell:
-        cmd: "gzip -dc {{ zabbix_initialize_script_dir_arch }}/{{ zabbix_initialize_script_file_arch }}\
-               > {{ zabbix_initialize_script_dir_unarch }}/{{ zabbix_initialize_script_filename }}"
+        cmd:
+          "gzip -dc {{ zabbix_initialize_script_dir_arch }}/{{ zabbix_initialize_script_file_arch }}\
+          > {{ zabbix_initialize_script_dir_unarch }}/{{ zabbix_initialize_script_filename }}"
       # 解凍コマンドを実行しても冪等性が確保されているため、lintエラー回避のために下記を明記する。
       changed_when: false
 
     - name: 解凍したスクリプトをMySQLに取り込ませる
       community.mysql.mysql_db:
-        login_user: "{{ mysql.accounts.zabbix.username }}"
-        login_password: "{{ mysql.accounts.zabbix.password }}"
+        login_user: "{{ secrets.mysql.accounts.zabbix.username }}"
+        login_password: "{{ secrets.mysql.accounts.zabbix.password }}"
         name: "{{ mysql.database.name }}"
         state: import
         # 実行したいスクリプト（解凍したスクリプトのファイルパス）を指定する
@@ -194,7 +198,7 @@
     - name: 「log_bin_trust_function_creators」を無効にする(元に戻す)
       community.mysql.mysql_query:
         login_user: "root"
-        login_password: "{{ mysql.accounts.root_user.password }}"
+        login_password: "{{ secrets.mysql.accounts.root_user.password }}"
         query: "SET GLOBAL log_bin_trust_function_creators = 0;"
 
     - name: 「zabbix_server.conf」をバックアップする
@@ -202,22 +206,22 @@
         src: "{{ zabbix_conf_server_file_path }}"
         dest: "{{ zabbix_conf_server_file_path }}.bak"
         remote_src: true
-        mode: '0644'
+        mode: "0644"
 
     - name: 「zabbix_server.conf」を修正し、Zabbixの設定ファイルに、DB接続に必要なパスワードを設定する
       ansible.builtin.lineinfile:
         path: /etc/zabbix/zabbix_server.conf
         # 既存のコメントアウトされている記述のコメントアウトはずし、パスワードを埋め込む
         regexp: '^#\s*DBPassword='
-        line: "DBPassword={{ mysql.accounts.zabbix.password }}"
+        line: "DBPassword={{ secrets.mysql.accounts.zabbix.password }}"
         state: present
 
     - name: Zabbixの設定ファイルを編集し、スクリプト実行を許可する（ping監視を使えるようにするため）
       ansible.builtin.lineinfile:
         path: /etc/zabbix/zabbix_server.conf
         # EnableGlobalScripts=0を1に変更する
-        regexp: '^EnableGlobalScripts='
-        line: 'EnableGlobalScripts=1'
+        regexp: "^EnableGlobalScripts="
+        line: "EnableGlobalScripts=1"
         state: present
 
     - name: Zabbix関連のサービスを再起動し、自動起動設定を行う
@@ -275,7 +279,7 @@
     - name: Seleniumをダウンロードする
       ansible.builtin.get_url:
         url: "https://github.com/SeleniumHQ/selenium/releases/download/\
-              selenium-{{ selenium.selenium_version }}/selenium-server-{{ selenium.selenium_version }}.jar"
+          selenium-{{ selenium.selenium_version }}/selenium-server-{{ selenium.selenium_version }}.jar"
         dest: "{{ selenium.work_dir }}"
         mode: "755"
 
@@ -283,7 +287,7 @@
     - name: Webドライバをダウンロード
       ansible.builtin.get_url:
         url: "https://github.com/mozilla/geckodriver/releases/download/\
-              v{{ selenium.webdriver_version }}/{{ webdriver_file_name_for_archive }}"
+          v{{ selenium.webdriver_version }}/{{ webdriver_file_name_for_archive }}"
         dest: "{{ selenium.work_dir }}"
         mode: "755"
 
