@@ -185,7 +185,7 @@ ZabbixへAPIリクエストするにあたって、VisualStudioCodeの`REST Clie
 
 ホストの一覧を取得：
 
-```json
+```http
 GET http://XXX.XXX.XXX.XXX/zabbix/api_jsonrpc.php
 Content-Type: application/json
 Authorization: Bearer <APIトークン>
@@ -209,7 +209,7 @@ Authorization: Bearer <APIトークン>
 
 正規表現を作成する：
 
-```json
+```http
 GET http://XXX.XXX.XXX.XXX/zabbix/api_jsonrpc.php
 Content-Type: application/json
 Authorization: Bearer <発行したAPIトークン>
