@@ -28,6 +28,7 @@ OSS製品であるSnipe-ITを監視対象とする前提でZabbix監視項目を
 3. ログイン後に表示されるHTML内に「ダッシュボード」文字列が含まれているかどうかを確認する
 
 なお、監視する際にはSeleniumとWebドライバを用いてブラウザ監視を行うこととする。
+
 ※ZabbixのWebシナリオの場合、JavaScriptやCSRFトークンを処理するのが困難なため、Seleniumを用いる方法を採用している
 
 ## Ansible構成
@@ -84,8 +85,10 @@ export EDITOR=vim
 
 以下の通り記述すること。
 
-| YAMLのキー | 設定する値 |
-| ---------- | ---------- |
+| YAMLのキー                                          | 設定する値                                                     |
+| --------------------------------------------------- | -------------------------------------------------------------- |
+| `secrets`→`mysql`→`accounts`→`root_user`→`password` | MySQL導入時に設定したい、rootユーザのパスワード。              |
+| `secrets`→`mysql`→`accounts`→`zabbix`→`password`    | MySQL導入時に設定したい、zabbix用ののMySQLユーザのパスワード。 |
 
 ansible/ansible_secrets.yml
 
@@ -136,7 +139,7 @@ Zabbixのサイトにアクセスし、`ユーザー`→`APIトークン`→`API
 
 | YAMLのキー                        | 設定する値                                      |
 | --------------------------------- | ----------------------------------------------- |
-| `api_token`                       | Zabbixから発行したAPIトークン                   |
+| `api_token`                       | 前述の手順でZabbixから発行したAPIトークン       |
 | `target_host`→`ip`                | 監視対象のSnipe-ITのWebサイトのIPアドレス       |
 | `target_host`→`macros`→`username` | Snipe-ITのWebサイトにログインする際のユーザ名   |
 | `target_host`→`macros`→`password` | Snipe-ITのWebサイトにログインする際のパスワード |
