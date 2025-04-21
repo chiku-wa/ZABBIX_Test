@@ -1,3 +1,6 @@
+# VisualStudioCodeの設定ファイルは除外する
+.vscode/settings.json
+
 # 一時ディレクトリは除外する
 /tmp/*
 
