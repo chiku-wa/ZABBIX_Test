@@ -181,7 +181,9 @@ ansible-playbook -i hosts setup-inspection-zabbix-playbook.yml --ask-vault-pass
 
 ### Zabbix APIのテストを効率的に行いたい
 
-ZabbixへAPIリクエストするにあたって、VisualStudioCodeの`REST Client`(<https://marketplace.visualstudio.com/items?itemName=humao.rest-client)の利用を前提として、リクエスト用のテキストのサンプルファイルを以下に記述する。>
+ZabbixへAPIリクエストするにあたって、VisualStudioCodeの`REST Client`(<https://marketplace.visualstudio.com/items?itemName=humao.rest-client)の利用を前提として、リクエスト用のテキストのサンプルファイルを以下に記述する。>を用いると良い。
+
+具体的なリクエスト例は下記の通り。
 
 ホストの一覧を取得：
 
